@@ -55,6 +55,15 @@ EOT;
   $whois       = shell_exec( "whois $domain | grep -E 'Name Server|Registrar:|Domain Name:|Updated Date:|Creation Date:|Registrar IANA ID:Domain Status:'" );
   $dns_records = shell_exec( $bash_dns_records );
   $ip_lookup   = shell_exec( $bash_ip_lookup );
+
+  if ( empty( $whois ) ) {
+    $errors[] = "Domain not found.";
+    echo json_encode([
+        "errors" => $errors,
+      ]);
+    die();
+  }
+
   echo json_encode( [
     "whois"       => $whois,
     "dns_records" => $dns_records,
