@@ -94,7 +94,7 @@ run();
     <v-app>
       <v-main>
         <v-container>
-            <v-text-field label="Domain" v-model="domain" spellcheck="false"></v-text-field>
+            <v-text-field label="Domain" v-model="domain" spellcheck="false" @keydown.enter="lookupDomain()"></v-text-field>
             <v-btn @click="lookupDomain()" class="mb-7">Lookup</v-btn>
             <v-alert type="warning" v-for="error in response.errors">{{ error }}</v-alert>
             <v-row v-if="response.whois && response.whois != ''" class="mt-7">
