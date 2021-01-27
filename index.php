@@ -42,8 +42,21 @@ for ip in $( dig $domain +short ); do
 done
 EOT;
 
-  $whois = trim( shell_exec( "whois $domain | grep -E 'Name Server|Registrar:|Domain Name:|Updated Date:|Creation Date:|Registrar IANA ID:Domain Status:'" ) );
-  $ips   =  explode( "\n", trim( shell_exec( "dig $domain +short" ) ) );
+  $whois = explode( "\n", trim( shell_exec( "whois $domain | grep -E 'Name Server|Registrar:|Domain Name:|Updated Date:|Creation Date:|Registrar IANA ID:Domain Status:'" ) ) );
+  foreach( $whois as $key => $record ) {
+    $split  = explode( ":", trim( $record ) );
+    $name   = trim( $split[0] );
+    $value  = trim( $split[1] );
+    if ( $name == "Name Server" || $name == "Domain Name"  ) {
+        $value = strtolower( $value );
+    }
+    $whois[ $key ] = [ "name" => $name, "value" => $value ];
+  }
+  $whois = array_map("unserialize", array_unique(array_map("serialize", $whois)));
+  $col_name  = array_column($whois, 'name');
+  $col_value = array_column($whois, 'value');
+  array_multisort($col_name, SORT_ASC, $col_value, SORT_ASC, $whois);
+  $ips   = explode( "\n", trim( shell_exec( "dig $domain +short" ) ) );
   foreach ( $ips as $ip ) {
     $ip_lookup[ "$ip" ] = trim( shell_exec( "whois $ip | grep -E 'NetName:|Organization:|OrgName:'" ) );
   }
@@ -139,9 +152,9 @@ run();
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for='row in response.whois.split("\n")'>
-                        <td>{{ row.split( ":" )[0] }}</td>
-                        <td>{{ row.split( ":" )[1] }}</td>
+                    <tr v-for='record in response.whois'>
+                        <td>{{ record.name }}</td>
+                        <td>{{ record.value }}</td>
                     </tr>
                 </tbody>
                 </template>
@@ -206,7 +219,7 @@ run();
                     </tr>
                 </tbody>
                 </template>
-            </v-simple-table>
+                </v-simple-table>
                 </v-card-text>
                 </v-card>
             </v-card>
@@ -231,9 +244,8 @@ run();
                 fetch( "?domain=" + this.domain )
                     .then( response => response.json() )
                     .then( data => {
-                            if( data.whois ) { data.whois = data.whois.replace(/^[^\S\r\n]+|[^\S\r\n]+$/gm, "") }
-                            this.response = data
-                        })
+                        this.response = data
+                    })
             }
         }
     })
