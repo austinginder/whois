@@ -243,6 +243,7 @@ run();
         },
         methods: {
             lookupDomain() {
+                this.domain = this.domain.replace( "http://", "" ).replace( "https://", "" ).replace( "/", "" )
                 fetch( "?domain=" + this.domain )
                     .then( response => response.json() )
                     .then( data => {
