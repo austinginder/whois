@@ -42,7 +42,17 @@ for ip in $( dig $domain +short ); do
 done
 EOT;
 
-  $whois = explode( "\n", trim( shell_exec( "whois $domain | grep -E 'Name Server|Registrar:|Domain Name:|Updated Date:|Creation Date:|Registrar IANA ID:Domain Status:'" ) ) );
+  $whois = trim( shell_exec( "whois $domain | grep -E 'Name Server|Registrar:|Domain Name:|Updated Date:|Creation Date:|Registrar IANA ID:Domain Status:'" ) );
+
+  if ( empty( $whois ) ) {
+    $errors[] = "Domain not found.";
+    echo json_encode([
+        "errors" => $errors,
+      ]);
+    die();
+  }
+
+  $whois = explode( "\n", $whois );
   foreach( $whois as $key => $record ) {
     $split  = explode( ":", trim( $record ) );
     $name   = trim( $split[0] );
@@ -52,21 +62,13 @@ EOT;
     }
     $whois[ $key ] = [ "name" => $name, "value" => $value ];
   }
-  $whois = array_map("unserialize", array_unique(array_map("serialize", $whois)));
+  $whois     = array_map("unserialize", array_unique(array_map("serialize", $whois)));
   $col_name  = array_column($whois, 'name');
   $col_value = array_column($whois, 'value');
   array_multisort($col_name, SORT_ASC, $col_value, SORT_ASC, $whois);
-  $ips   = explode( "\n", trim( shell_exec( "dig $domain +short" ) ) );
+  $ips      = explode( "\n", trim( shell_exec( "dig $domain +short" ) ) );
   foreach ( $ips as $ip ) {
     $ip_lookup[ "$ip" ] = trim( shell_exec( "whois $ip | grep -E 'NetName:|Organization:|OrgName:'" ) );
-  }
-
-  if ( empty( $whois ) ) {
-    $errors[] = "Domain not found.";
-    echo json_encode([
-        "errors" => $errors,
-      ]);
-    die();
   }
 
   $records_to_check = [
