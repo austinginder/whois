@@ -134,7 +134,10 @@ run();
       <v-main>
         <v-container>
             <v-text-field label="Domain" v-model="domain" spellcheck="false" @keydown.enter="lookupDomain()"></v-text-field>
-            <v-btn @click="lookupDomain()" class="mb-7">Lookup</v-btn>
+            <v-btn @click="lookupDomain()" :loading="loading" class="mb-7">
+                Lookup
+                <template v-slot:loader><v-progress-circular :size="22" :width="1" color="primary" indeterminate></v-progress-circular></template>
+            </v-btn>
             <v-alert type="warning" v-for="error in response.errors">{{ error }}</v-alert>
             <v-row v-if="response.whois && response.whois != ''">
             <v-col md="5" cols="12">
@@ -239,16 +242,36 @@ run();
         vuetify: new Vuetify(),
         data: {
             domain: "",
+            loading: false,
             response: { whois: "", errors: [] }
         },
         methods: {
             lookupDomain() {
-                this.domain = this.domain.replace( "http://", "" ).replace( "https://", "" ).replace( "/", "" )
+                this.loading = true
+                this.domain = this.extractHostname( this.domain )
                 fetch( "?domain=" + this.domain )
                     .then( response => response.json() )
                     .then( data => {
+                        this.loading = false
                         this.response = data
                     })
+            },
+            extractHostname( url ) {
+                var hostname;
+                //find & remove protocol (http, ftp, etc.) and get hostname
+
+                if (url.indexOf("//") > -1) {
+                    hostname = url.split('/')[2];
+                } else {
+                    hostname = url.split('/')[0];
+                }
+
+                //find & remove port number
+                hostname = hostname.split(':')[0];
+                //find & remove "?"
+                hostname = hostname.split('?')[0];
+
+                return hostname;
             }
         }
     })
