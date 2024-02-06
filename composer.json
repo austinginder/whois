@@ -1,0 +1,5 @@
+{
+    "require": {
+        "badcow/dns": "^4.2"
+    }
+}

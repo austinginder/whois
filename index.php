@@ -1,5 +1,29 @@
 <?php
 
+require_once 'vendor/autoload.php';
+use Badcow\DNS\Classes;
+use Badcow\DNS\Zone;
+use Badcow\DNS\Rdata\Factory;
+use Badcow\DNS\ResourceRecord;
+use Badcow\DNS\AlignedBuilder;
+
+function specialTxtFormatter(Badcow\DNS\Rdata\TXT $rdata, int $padding): string {
+    //If the text length is less than or equal to 50 characters, just return it unaltered.
+    if (strlen($rdata->getText()) <= 500) {
+        return sprintf('"%s"', addcslashes($rdata->getText(), '"\\'));
+    }
+
+    $returnVal = "(\n";
+    $chunks = str_split($rdata->getText(), 500);
+    foreach ($chunks as $chunk) {
+        $returnVal .= str_repeat(' ', $padding).
+            sprintf('"%s"', addcslashes($chunk, '"\\')).
+            "\n";
+    }
+    $returnVal .= str_repeat(' ', $padding) . ")";
+
+    return $returnVal;
+}
 
 function run() {
 
@@ -35,6 +59,9 @@ function run() {
         die();
     }
 
+    $zone = new Zone( $domain ."." );
+    $zone->setDefaultTtl(3600);
+
     $bash_ip_lookup = <<<EOT
 for ip in $( dig $domain +short ); do
     echo "Details on \$ip"
@@ -42,7 +69,8 @@ for ip in $( dig $domain +short ); do
 done
 EOT;
 
-  $whois = trim( shell_exec( "whois $domain | grep -E 'Name Server|Registrar:|Domain Name:|Updated Date:|Creation Date:|Registrar IANA ID:Domain Status:'" ) );
+  $whois = shell_exec( "whois $domain | grep -E 'Name Server|Registrar:|Domain Name:|Updated Date:|Creation Date:|Registrar IANA ID:Domain Status:'" );
+  $whois = empty( $whois ) ? "" : trim( $whois );
 
   if ( empty( $whois ) ) {
     $errors[] = "Domain not found.";
@@ -120,12 +148,69 @@ EOT;
             continue;
         }
     }
+    if ( $type == "a" ) {
+        $setName = empty( $name ) ? "@" : $name;
+        $record  = new ResourceRecord;
+        $record->setName( $setName );
+        $record->setRdata(Factory::A($value));
+        $zone->addResourceRecord($record);
+    }
+    if ( $type == "cname" ) {
+        $setName = empty( $name ) ? $domain : $name;
+        $record  = new ResourceRecord;
+        $record->setName( $setName );
+        $record->setRdata(Factory::Cname($value));
+        $zone->addResourceRecord($record);
+    }
+    if ( $type == "srv" ) {
+        $record_values = explode( " ", $value );
+        $setName = empty( $name ) ? "@" : $name;
+        $record  = new ResourceRecord;
+        $record->setName( $setName );
+        $record->setRdata(Factory::Srv($record_values[0], $record_values[1], $record_values[2], $record_values[3]));
+        $zone->addResourceRecord($record);
+    }
+    if ( $type == "mx" ) {
+        $setName       = empty( $name ) ? "@" : $name;
+        $record_values = explode( "\n", $value );
+        usort($record_values, function ($a, $b) {
+            $a_value = explode( " ", $a );
+            $b_value = explode( " ", $b );
+            return $a_value[0] - $b_value[0];
+        });
+        foreach( $record_values as $record_value ) {
+            $record_value = explode( " ", $record_value );
+            $mx_priority  = $record_value[0];
+            $mx_value     = $record_value[1];
+            $record       = new ResourceRecord;
+            $record->setName( $setName );
+            $record->setRdata(Factory::Mx($mx_priority, $mx_value));
+            $zone->addResourceRecord($record);
+        }
+    }
+    if ( $type == "txt" ) {
+        $record_values = explode( "\n", $value );
+        $setName       = empty( $name ) ? "@" : "$name";
+        foreach( $record_values as $record_value ) {
+            $record = new ResourceRecord;
+            $record->setName( $setName );
+            $record->setClass('IN');
+            $record->setRdata(Factory::Txt(trim($record_value,'"'), 0, 200));
+            $zone->addResourceRecord($record);
+        }
+    }
+    $dns_records[] = [ "type" => $type, "name" => $name, "value" => $value ];
+  }
+
+  $builder = new AlignedBuilder();
+  $builder->addRdataFormatter('TXT', 'specialTxtFormatter');
 
   echo json_encode( [
     "whois"       => $whois,
     "dns_records" => $dns_records,
     "ip_lookup"   => $ip_lookup,
     "errors"      => [],
+    "zone"        => $builder->build($zone)
   ]);
   die();
 }
@@ -135,19 +220,24 @@ run();
 ?><!DOCTYPE html>
 <html>
 <head>
-  <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
-  <link rel="icon" href="favicon.png" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
-  <style>
+    <link href="prism.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+    <link rel="icon" href="favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+    <style>
     [v-cloak] > * {
         display:none;
     }
     .multiline {
         white-space: pre-wrap;
     }
-  </style>
+    .theme--light.v-application code {
+        padding: 0px;
+        background: transparent;
+    }
+    </style>
 </head>
 <body>
   <div id="app" v-cloak>
@@ -249,12 +339,21 @@ run();
                 </v-card-text>
                 </v-card>
             </v-card>
+            <v-card class="mt-5">
+                <v-btn small absolute top right depressed @click="downloadZone()">
+                  <v-icon left>mdi-download</v-icon>
+                  Download
+                </v-btn>
+                <pre class="language-dns-zone-file" style="border-radius:4px;border:0px"><code class="language-dns-zone-file">{{ response.zone }}</code></pre>
+                <a ref="download_zone" href="#"></a>
+            </v-card>
             </v-col>
             </v-row>
         </v-container>
       </v-main>
     </v-app>
   </div>
+  <script src="prism.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
   <script>
@@ -264,7 +363,7 @@ run();
         data: {
             domain: "",
             loading: false,
-            response: { whois: "", errors: [] }
+            response: { whois: "", errors: [], zone: "" }
         },
         methods: {
             lookupDomain() {
@@ -275,6 +374,9 @@ run();
                     .then( data => {
                         this.loading = false
                         this.response = data
+                    })
+                    .then( done => {
+                        Prism.highlightAll()
                     })
             },
             extractHostname( url ) {
@@ -293,6 +395,12 @@ run();
                 hostname = hostname.split('?')[0];
 
                 return hostname;
+            },
+            downloadZone() {
+                newBlob = new Blob([this.response.zone], {type: "text/dns"})
+                this.$refs.download_zone.download = `${this.domain}.zone`;
+                this.$refs.download_zone.href = window.URL.createObjectURL(newBlob);
+                this.$refs.download_zone.click();
             }
         }
     })
