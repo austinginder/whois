@@ -84,6 +84,8 @@ EOT;
     [ "cname" => "_acme-challenge" ],
     [ "cname" => "k2._domainkey" ],
     [ "cname" => "k3._domainkey" ],
+    [ "cname" => "ctct1._domainkey" ],
+    [ "cname" => "ctct2._domainkey" ],
     [ "cname" => "mail" ],
     [ "cname" => "ftp" ],
     [ "mx"    => "" ],
@@ -104,11 +106,20 @@ EOT;
     if ( ! empty( $name ) ) {
         $pre = "{$name}.";
     }
-    $value = trim( shell_exec( "dig $pre$domain $type +short | sort -n" ) );
-    if ( ! empty( $value ) ) {
-        $dns_records[] = [ "type" => $type, "name" => $name, "value" => $value ];
+    $value = shell_exec( "dig $pre$domain $type +short | sort -n" );
+    $value = empty( $value ) ? "" : trim( $value );
+    if ( empty( $value ) ) {
+        continue;
     }
-  }
+    // Verify A record is not a CNAME record
+    if(  $type == "a" && preg_match("/[a-z]/i", $value)){
+        $type  = "cname";
+        $value = shell_exec( "dig $pre$domain $type +short | sort -n" );
+        $value = empty( $value ) ? "" : trim( $value );
+        if ( empty( $value ) ) {
+            continue;
+        }
+    }
 
   echo json_encode( [
     "whois"       => $whois,
