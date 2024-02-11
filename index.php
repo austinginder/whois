@@ -117,10 +117,15 @@ EOT;
     [ "cname" => "mail" ],
     [ "cname" => "ftp" ],
     [ "mx"    => "" ],
+    [ "mx"    => "mg" ],
     [ "txt"   => "" ],
     [ "txt"   => "_dmarc" ],
+    [ "txt"   => "_acme-challenge" ],
+    [ "txt"   => "_acme-challenge.www" ],
+    [ "txt"   => " _mailchannels" ],
     [ "txt"   => "default._domainkey" ],
     [ "txt"   => "google._domainkey" ],
+    [ "txt"   => "mg" ],
     [ "txt"   => "k1._domainkey" ],
     [ "srv"   => "_sip._tls" ],
     [ "srv"   => "_sipfederationtls._tcp" ],
@@ -149,11 +154,14 @@ EOT;
         }
     }
     if ( $type == "a" ) {
-        $setName = empty( $name ) ? "@" : $name;
-        $record  = new ResourceRecord;
-        $record->setName( $setName );
-        $record->setRdata(Factory::A($value));
-        $zone->addResourceRecord($record);
+        $record_values = explode( "\n", $value );
+        $setName       = empty( $name ) ? "@" : $name;
+        foreach( $record_values as $record_value ) {
+            $record    = new ResourceRecord;
+            $record->setName( $setName );
+            $record->setRdata(Factory::A( $record_value ));
+            $zone->addResourceRecord($record);
+        }
     }
     if ( $type == "cname" ) {
         $setName = empty( $name ) ? $domain : $name;
