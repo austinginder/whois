@@ -96,7 +96,12 @@ EOT;
   array_multisort($col_name, SORT_ASC, $col_value, SORT_ASC, $whois);
   $ips      = explode( "\n", trim( shell_exec( "dig $domain +short" ) ) );
   foreach ( $ips as $ip ) {
-    $ip_lookup[ "$ip" ] = trim( shell_exec( "whois $ip | grep -E 'NetName:|Organization:|OrgName:'" ) );
+    if ( empty( $ip ) ) {
+        continue;
+    }
+    $response           = shell_exec( "whois $ip | grep -E 'NetName:|Organization:|OrgName:'" );
+    $response           = empty( $response ) ? "" : trim( $response );
+    $ip_lookup[ "$ip" ] = $response;
   }
 
   $records_to_check = [
@@ -172,6 +177,9 @@ EOT;
     }
     if ( $type == "srv" ) {
         $record_values = explode( " ", $value );
+        if ( count ( $record_values ) != "4" ) {
+            continue;
+        }
         $setName = empty( $name ) ? "@" : $name;
         $record  = new ResourceRecord;
         $record->setName( $setName );
@@ -184,10 +192,13 @@ EOT;
         usort($record_values, function ($a, $b) {
             $a_value = explode( " ", $a );
             $b_value = explode( " ", $b );
-            return $a_value[0] - $b_value[0];
+            return (int) $a_value[0] - (int) $b_value[0];
         });
         foreach( $record_values as $record_value ) {
             $record_value = explode( " ", $record_value );
+            if ( count( $record_value ) != "2" ) {
+                continue;
+            }
             $mx_priority  = $record_value[0];
             $mx_value     = $record_value[1];
             $record       = new ResourceRecord;
