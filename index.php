@@ -135,6 +135,7 @@ EOT;
     [ "srv"   => "_sip._tls" ],
     [ "srv"   => "_sipfederationtls._tcp" ],
     [ "ns"    => "" ],
+    [ "soa"   => "" ],
   ];
 
   foreach( $records_to_check as $record ) {
@@ -148,6 +149,25 @@ EOT;
     $value = empty( $value ) ? "" : trim( $value );
     if ( empty( $value ) ) {
         continue;
+    }
+    if ( $type == "soa" ) {
+        $record_value = explode( " ", $value );
+        $setName = empty( $name ) ? "@" : $name;
+        $record  = new ResourceRecord;
+        $record->setName( $setName );
+        $record->setRdata(Factory::Soa($record_value[0],$record_value[1],$record_value[2],$record_value[3],$record_value[4],$record_value[5],$record_value[6]));
+        $zone->addResourceRecord($record);
+        continue;
+    }
+    if ( $type == "ns" ) {
+        $record_values = explode( "\n", $value );
+        foreach( $record_values as  $record_value ) {
+            $setName = empty( $name ) ? "@" : $name;
+            $record  = new ResourceRecord;
+            $record->setName( $setName );
+            $record->setRdata(Factory::Ns($record_value));
+            $zone->addResourceRecord($record);
+        }
     }
     // Verify A record is not a CNAME record
     if(  $type == "a" && preg_match("/[a-z]/i", $value)){
