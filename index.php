@@ -69,7 +69,7 @@ for ip in $( dig $domain +short ); do
 done
 EOT;
 
-  $whois = shell_exec( "whois $domain | grep -E 'Name Server|Registrar:|Domain Name:|Updated Date:|Creation Date:|Registrar IANA ID:Domain Status:'" );
+  $whois = shell_exec( "whois $domain | grep -E 'Name Server|Registrar:|Domain Name:|Updated Date:|Creation Date:|Registrar IANA ID:Domain Status:|Reseller:'" );
   $whois = empty( $whois ) ? "" : trim( $whois );
 
   if ( empty( $whois ) ) {
