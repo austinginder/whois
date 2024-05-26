@@ -6,6 +6,7 @@ use Badcow\DNS\Zone;
 use Badcow\DNS\Rdata\Factory;
 use Badcow\DNS\ResourceRecord;
 use Badcow\DNS\AlignedBuilder;
+error_reporting(E_ALL & ~E_DEPRECATED);
 
 function specialTxtFormatter(Badcow\DNS\Rdata\TXT $rdata, int $padding): string {
     //If the text length is less than or equal to 50 characters, just return it unaltered.
