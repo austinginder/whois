@@ -108,6 +108,7 @@ EOT;
   $records_to_check = [
     [ "a"     => "" ],
     [ "a"     => "www" ],
+    [ "a"     => "mail" ],
     [ "a"     => "*" ],
     [ "cname" => "autodiscover" ],
     [ "cname" => "sip" ],
