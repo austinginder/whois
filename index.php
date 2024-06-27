@@ -264,8 +264,8 @@ run();
     <title>WHOIS</title>
     <link href="prism.css" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@v3.6.10/dist/vuetify.min.css" rel="stylesheet">
     <link rel="icon" href="favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
     <style>
@@ -286,18 +286,22 @@ run();
     <v-app>
       <v-main>
         <v-container>
-            <v-text-field label="Domain" v-model="domain" spellcheck="false" @keydown.enter="lookupDomain()"></v-text-field>
-            <v-btn @click="lookupDomain()" :loading="loading" class="mb-7">
-                Lookup
-                <template v-slot:loader><v-progress-circular :size="22" :width="1" color="primary" indeterminate></v-progress-circular></template>
-            </v-btn>
+            <v-text-field variant="outlined" color="primary" label="Domain" v-model="domain" spellcheck="false" @keydown.enter="lookupDomain()" class="mt-5 mx-auto">
+            <template v-slot:append-inner>
+                <v-btn variant="flat" color="primary" @click="lookupDomain()" :loading="loading">
+                    Lookup
+                    <template v-slot:loader><v-progress-circular :size="22" :width="2" color="white" indeterminate></v-progress-circular></template>
+                </v-btn>
+            </template>
+            </v-text-field>
+            
             <v-alert type="warning" v-for="error in response.errors">{{ error }}</v-alert>
             <v-row v-if="response.whois && response.whois != ''">
             <v-col md="5" cols="12">
-            <v-card>
+            <v-card variant="outlined" color="primary">
                 <v-card-title>Whois</v-card-title>
                 <v-card-text>
-                <v-simple-table dense>
+                <v-table density="compact">
                 <template v-slot:default>
                 <thead>
                     <tr>
@@ -316,16 +320,16 @@ run();
                     </tr>
                 </tbody>
                 </template>
-                </v-simple-table>
+                </v-table>
                 </v-card-text>
                 </v-card>
             </v-card>
-            <v-card class="mt-5">
+            <v-card class="mt-5" variant="outlined" color="primary">
                 <v-card-title>IP information</v-card-title>
                 <v-card-text>
                     <template v-for='(rows, ip) in response.ip_lookup'>
                     <div class="mt-3">Details for {{ ip }}</div>
-                    <v-simple-table dense>
+                    <v-table density="compact">
                     <template v-slot:default>
                     <thead>
                         <tr>
@@ -344,17 +348,17 @@ run();
                         </tr>
                     </tbody>
                     </template>
-                    </v-simple-table>
+                    </v-table>
                     </template>
                 </v-card-text>
                 </v-card>
             </v-card>
             </v-col>
             <v-col md="7" cols="12">
-            <v-card>
+            <v-card variant="outlined" color="primary">
                 <v-card-title>Common DNS records</v-card-title>
                 <v-card-text>
-                <v-simple-table dense>
+                <v-table density="compact">
                 <template v-slot:default>
                 <thead>
                     <tr>
@@ -377,16 +381,16 @@ run();
                     </tr>
                 </tbody>
                 </template>
-                </v-simple-table>
+                </v-table>
                 </v-card-text>
                 </v-card>
             </v-card>
-            <v-card class="mt-5">
-                <v-btn small absolute top right depressed @click="downloadZone()">
+            <v-card class="mt-5" variant="flat">
+                <v-btn size="small" @click="downloadZone()" class="position-absolute right-0 mt-6 mr-4">
                   <v-icon left>mdi-download</v-icon>
                   Download
                 </v-btn>
-                <pre class="language-dns-zone-file" style="border-radius:4px;border:0px"><code class="language-dns-zone-file">{{ response.zone }}</code></pre>
+                <pre class="language-dns-zone-file text-body-2" style="border-radius:4px;border:0px"><code class="language-dns-zone-file">{{ response.zone }}</code></pre>
                 <a ref="download_zone" href="#"></a>
             </v-card>
             </v-col>
@@ -396,16 +400,20 @@ run();
     </v-app>
   </div>
   <script src="prism.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.4.30/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@v3.6.10/dist/vuetify.min.js"></script>
   <script>
-    new Vue({
-        el: '#app',
-        vuetify: new Vuetify(),
-        data: {
-            domain: "",
-            loading: false,
-            response: { whois: "", errors: [], zone: "" }
+    const { createApp } = Vue;
+    const { createVuetify } = Vuetify;
+    const vuetify = createVuetify();
+
+    createApp({
+        data() {
+            return {
+                domain: "",
+                loading: false,
+                response: { whois: "", errors: [], zone: "" }
+            }
         },
         methods: {
             lookupDomain() {
@@ -445,7 +453,7 @@ run();
                 this.$refs.download_zone.click();
             }
         }
-    })
+    }).use(vuetify).mount('#app');
   </script>
 </body>
 </html>
