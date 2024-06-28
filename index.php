@@ -32,10 +32,20 @@ function run() {
         return;
     }
 
-    $domain      = $_REQUEST['domain'];
-    $errors      = [];
-    $ip_lookup   = [];
-    $dns_records = [];
+    $domain        = $_REQUEST['domain'];
+    $errors        = [];
+    $ip_lookup     = [];
+    $dns_records   = [];
+    $required_bins = [ "whois", "dig", "host" ];
+
+    foreach ($required_bins as $bin) {
+        $output     = null;
+        $return_var = null;
+        exec( "command -v $bin", $output, $return_var );
+        if ($return_var != 0) {
+            $errors[] = "Required command \"$bin\" is not installed.";
+        }
+    }
 
     if ( ! filter_var( $domain, FILTER_VALIDATE_DOMAIN ) ) {
         $errors[] = "Invalid domain.";
