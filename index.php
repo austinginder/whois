@@ -66,7 +66,7 @@ function run() {
     if ( count( $errors ) > 0 ) {
         echo json_encode( [
             "errors" => $errors,
-          ]);
+        ] );
         die();
     }
 
@@ -85,9 +85,9 @@ EOT;
 
   if ( empty( $whois ) ) {
     $errors[] = "Domain not found.";
-    echo json_encode([
+    echo json_encode( [
         "errors" => $errors,
-      ]);
+    ] );
     die();
   }
 
@@ -115,6 +115,8 @@ EOT;
     $ip_lookup[ "$ip" ] = $response;
   }
 
+  $wildcard_cname   = "";
+  $wildcard_a       = "";
   $records_to_check = [
     [ "a"     => "" ],
     [ "a"     => "*" ],
@@ -167,7 +169,10 @@ EOT;
     if ( ! empty( $name ) ) {
         $pre = "{$name}.";
     }
-    $value = shell_exec( "dig $pre$domain $type +short | sort -n" );
+    $value = shell_exec( "(host -t $type $pre$domain | grep -q 'is an alias for') && echo \"\" || dig $pre$domain $type +short | sort -n" );
+    if ( $type == "cname" ) {
+        $value = shell_exec( "dig $pre$domain $type +short | sort -n" );
+    }
     $value = empty( $value ) ? "" : trim( $value );
     if ( empty( $value ) ) {
         continue;
@@ -201,6 +206,12 @@ EOT;
         }
     }
     if ( $type == "a" ) {
+        if ( ! empty( $wildcard_a ) && $wildcard_a == $record_values ) {
+            continue;
+        }
+        if ( $name == "*" ) {
+            $wildcard_a = $record_values;
+        }
         $record_values = explode( "\n", $value );
         $setName       = empty( $name ) ? "@" : $name;
         foreach( $record_values as $record_value ) {
@@ -211,6 +222,13 @@ EOT;
         }
     }
     if ( $type == "cname" ) {
+        if ( $name == "*" ) {
+            $wildcard_cname = $value;
+            continue;
+        }
+        if ( ! empty( $wildcard_cname ) && $wildcard_cname == $value ) {
+            continue;
+        }
         $setName = empty( $name ) ? $domain : $name;
         $record  = new ResourceRecord;
         $record->setName( $setName );
@@ -315,7 +333,7 @@ run();
             </template>
             </v-text-field>
             
-            <v-alert type="warning" v-for="error in response.errors">{{ error }}</v-alert>
+            <v-alert type="warning" v-for="error in response.errors" class="mb-3" v-html="error"></v-alert>
             <v-row v-if="response.whois && response.whois != ''">
             <v-col md="5" cols="12">
             <v-card variant="outlined" color="primary">
