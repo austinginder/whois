@@ -80,216 +80,241 @@ for ip in $( dig $domain +short ); do
 done
 EOT;
 
-  $whois = shell_exec( "whois $domain | grep -E 'Name Server|Registrar:|Domain Name:|Updated Date:|Creation Date:|Registrar IANA ID:Domain Status:|Reseller:'" );
-  $whois = empty( $whois ) ? "" : trim( $whois );
+    $whois = shell_exec( "whois $domain | grep -E 'Name Server|Registrar:|Domain Name:|Updated Date:|Creation Date:|Registrar IANA ID:Domain Status:|Reseller:'" );
+    $whois = empty( $whois ) ? "" : trim( $whois );
 
-  if ( empty( $whois ) ) {
-    $errors[] = "Domain not found.";
-    echo json_encode( [
-        "errors" => $errors,
-    ] );
-    die();
-  }
+    if ( empty( $whois ) ) {
+        $errors[] = "Domain not found.";
+        echo json_encode( [
+            "errors" => $errors,
+        ] );
+        die();
+    }
 
-  $whois = explode( "\n", $whois );
-  foreach( $whois as $key => $record ) {
-    $split  = explode( ":", trim( $record ) );
-    $name   = trim( $split[0] );
-    $value  = trim( $split[1] );
-    if ( $name == "Name Server" || $name == "Domain Name"  ) {
-        $value = strtolower( $value );
-    }
-    $whois[ $key ] = [ "name" => $name, "value" => $value ];
-  }
-  $whois     = array_map("unserialize", array_unique(array_map("serialize", $whois)));
-  $col_name  = array_column($whois, 'name');
-  $col_value = array_column($whois, 'value');
-  array_multisort($col_name, SORT_ASC, $col_value, SORT_ASC, $whois);
-  $ips      = explode( "\n", trim( shell_exec( "dig $domain +short" ) ) );
-  foreach ( $ips as $ip ) {
-    if ( empty( $ip ) ) {
-        continue;
-    }
-    $response           = shell_exec( "whois $ip | grep -E 'NetName:|Organization:|OrgName:'" );
-    $response           = empty( $response ) ? "" : trim( $response );
-    $ip_lookup[ "$ip" ] = $response;
-  }
-
-  $wildcard_cname   = "";
-  $wildcard_a       = "";
-  $records_to_check = [
-    [ "a"     => "" ],
-    [ "a"     => "*" ],
-    [ "a"     => "mail" ],
-    [ "a"     => "remote" ],
-    [ "a"     => "www" ],
-    [ "cname" => "*" ],
-    [ "cname" => "autodiscover" ],
-    [ "cname" => "sip" ],
-    [ "cname" => "lyncdiscover" ],
-    [ "cname" => "enterpriseregistration" ],
-    [ "cname" => "enterpriseenrollment" ],
-    [ "cname" => "email.mg" ],
-    [ "cname" => "msoid" ],
-    [ "cname" => "_acme-challenge" ],
-    [ "cname" => "k1._domainkey" ],
-    [ "cname" => "k2._domainkey" ],
-    [ "cname" => "k3._domainkey" ],
-    [ "cname" => "s1._domainkey" ],
-    [ "cname" => "s2._domainkey" ],
-    [ "cname" => "selector1._domainkey" ],
-    [ "cname" => "selector2._domainkey" ],
-    [ "cname" => "ctct1._domainkey" ],
-    [ "cname" => "ctct2._domainkey" ],
-    [ "cname" => "mail" ],
-    [ "cname" => "ftp" ],
-    [ "mx"    => "" ],
-    [ "mx"    => "mg" ],
-    [ "txt"   => "" ],
-    [ "txt"   => "_dmarc" ],
-    [ "txt"   => "_amazonses" ],
-    [ "txt"   => "_acme-challenge" ],
-    [ "txt"   => "_acme-challenge.www" ],
-    [ "txt"   => " _mailchannels" ],
-    [ "txt"   => "default._domainkey" ],
-    [ "txt"   => "google._domainkey" ],
-    [ "txt"   => "mg" ],
-    [ "txt"   => "smtp._domainkey.mg" ],
-    [ "txt"   => "k1._domainkey" ],
-    [ "srv"   => "_sip._tls" ],
-    [ "srv"   => "_sipfederationtls._tcp" ],
-    [ "ns"    => "" ],
-    [ "soa"   => "" ],
-  ];
-
-  foreach( $records_to_check as $record ) {
-    $pre  = "";
-    $type = key( $record );
-    $name = $record[ $type ];
-    if ( ! empty( $name ) ) {
-        $pre = "{$name}.";
-    }
-    $value = shell_exec( "(host -t $type $pre$domain | grep -q 'is an alias for') && echo \"\" || dig $pre$domain $type +short | sort -n" );
-    if ( $type == "cname" ) {
-        $value = shell_exec( "dig $pre$domain $type +short | sort -n" );
-    }
-    $value = empty( $value ) ? "" : trim( $value );
-    if ( empty( $value ) ) {
-        continue;
-    }
-    if ( $type == "soa" ) {
-        $record_value = explode( " ", $value );
-        $setName = empty( $name ) ? "@" : $name;
-        $record  = new ResourceRecord;
-        $record->setName( $setName );
-        $record->setRdata(Factory::Soa($record_value[0],$record_value[1],$record_value[2],$record_value[3],$record_value[4],$record_value[5],$record_value[6]));
-        $zone->addResourceRecord($record);
-        continue;
-    }
-    if ( $type == "ns" ) {
-        $record_values = explode( "\n", $value );
-        foreach( $record_values as  $record_value ) {
-            $setName = empty( $name ) ? "@" : $name;
-            $record  = new ResourceRecord;
-            $record->setName( $setName );
-            $record->setRdata(Factory::Ns($record_value));
-            $zone->addResourceRecord($record);
+    $whois = explode( "\n", $whois );
+    foreach( $whois as $key => $record ) {
+        $split  = explode( ":", trim( $record ) );
+        $name   = trim( $split[0] );
+        $value  = trim( $split[1] );
+        if ( $name == "Name Server" || $name == "Domain Name"  ) {
+            $value = strtolower( $value );
         }
+        $whois[ $key ] = [ "name" => $name, "value" => $value ];
     }
-    // Verify A record is not a CNAME record
-    if(  $type == "a" && preg_match("/[a-z]/i", $value)){
-        $type  = "cname";
-        $value = shell_exec( "dig $pre$domain $type +short | sort -n" );
+    $whois     = array_map("unserialize", array_unique(array_map("serialize", $whois)));
+    $col_name  = array_column($whois, 'name');
+    $col_value = array_column($whois, 'value');
+    array_multisort($col_name, SORT_ASC, $col_value, SORT_ASC, $whois);
+    $ips      = explode( "\n", trim( shell_exec( "dig $domain +short" ) ) );
+    foreach ( $ips as $ip ) {
+        if ( empty( $ip ) ) {
+            continue;
+        }
+        $response           = shell_exec( "whois $ip | grep -E 'NetName:|Organization:|OrgName:'" );
+        $response           = empty( $response ) ? "" : trim( $response );
+        $ip_lookup[ "$ip" ] = $response;
+    }
+
+    $wildcard_cname   = "";
+    $wildcard_a       = "";
+    $records_to_check = [
+        [ "a"     => "" ],
+        [ "a"     => "*" ],
+        [ "a"     => "mail" ],
+        [ "a"     => "remote" ],
+        [ "a"     => "www" ],
+        [ "cname" => "*" ],
+        [ "cname" => "www" ],
+        [ "cname" => "autodiscover" ],
+        [ "cname" => "sip" ],
+        [ "cname" => "lyncdiscover" ],
+        [ "cname" => "enterpriseregistration" ],
+        [ "cname" => "enterpriseenrollment" ],
+        [ "cname" => "email.mg" ],
+        [ "cname" => "msoid" ],
+        [ "cname" => "_acme-challenge" ],
+        [ "cname" => "k1._domainkey" ],
+        [ "cname" => "k2._domainkey" ],
+        [ "cname" => "k3._domainkey" ],
+        [ "cname" => "s1._domainkey" ],
+        [ "cname" => "s2._domainkey" ],
+        [ "cname" => "selector1._domainkey" ],
+        [ "cname" => "selector2._domainkey" ],
+        [ "cname" => "ctct1._domainkey" ],
+        [ "cname" => "ctct2._domainkey" ],
+        [ "cname" => "mail" ],
+        [ "cname" => "ftp" ],
+        [ "mx"    => "" ],
+        [ "mx"    => "mg" ],
+        [ "txt"   => "" ],
+        [ "txt"   => "_dmarc" ],
+        [ "txt"   => "_amazonses" ],
+        [ "txt"   => "_acme-challenge" ],
+        [ "txt"   => "_acme-challenge.www" ],
+        [ "txt"   => " _mailchannels" ],
+        [ "txt"   => "default._domainkey" ],
+        [ "txt"   => "google._domainkey" ],
+        [ "txt"   => "mg" ],
+        [ "txt"   => "smtp._domainkey.mg" ],
+        [ "txt"   => "k1._domainkey" ],
+        [ "srv"   => "_sip._tls" ],
+        [ "srv"   => "_sipfederationtls._tcp" ],
+        [ "ns"    => "" ],
+        [ "soa"   => "" ],
+    ];
+
+    foreach( $records_to_check as $record ) {
+        $pre  = "";
+        $type = key( $record );
+        $name = $record[ $type ];
+        if ( ! empty( $name ) ) {
+            $pre = "{$name}.";
+        }
+        $value = shell_exec( "(host -t $type $pre$domain | grep -q 'is an alias for') && echo \"\" || dig $pre$domain $type +short | sort -n" );
+        if ( $type == "cname" ) {
+            $value = shell_exec( "host -t $type $pre$domain | grep 'alias for' | awk '{print \$NF}'" );
+        }
         $value = empty( $value ) ? "" : trim( $value );
         if ( empty( $value ) ) {
             continue;
         }
-    }
-    if ( $type == "a" ) {
-        if ( ! empty( $wildcard_a ) && $wildcard_a == $record_values ) {
-            continue;
-        }
-        if ( $name == "*" ) {
-            $wildcard_a = $record_values;
-        }
-        $record_values = explode( "\n", $value );
-        $setName       = empty( $name ) ? "@" : $name;
-        foreach( $record_values as $record_value ) {
-            $record    = new ResourceRecord;
+        if ( $type == "soa" ) {
+            $record_value = explode( " ", $value );
+            $setName = empty( $name ) ? "@" : $name;
+            $record  = new ResourceRecord;
             $record->setName( $setName );
-            $record->setRdata(Factory::A( $record_value ));
+            $record->setRdata(Factory::Soa($record_value[0],$record_value[1],$record_value[2],$record_value[3],$record_value[4],$record_value[5],$record_value[6]));
             $zone->addResourceRecord($record);
-        }
-    }
-    if ( $type == "cname" ) {
-        if ( $name == "*" ) {
-            $wildcard_cname = $value;
             continue;
         }
-        if ( ! empty( $wildcard_cname ) && $wildcard_cname == $value ) {
-            continue;
+        if ( $type == "ns" ) {
+            $record_values = explode( "\n", $value );
+            foreach( $record_values as  $record_value ) {
+                $setName = empty( $name ) ? "@" : $name;
+                $record  = new ResourceRecord;
+                $record->setName( $setName );
+                $record->setRdata(Factory::Ns($record_value));
+                $zone->addResourceRecord($record);
+            }
         }
-        $setName = empty( $name ) ? $domain : $name;
-        $record  = new ResourceRecord;
-        $record->setName( $setName );
-        $record->setRdata(Factory::Cname($value));
-        $zone->addResourceRecord($record);
-    }
-    if ( $type == "srv" ) {
-        $record_values = explode( " ", $value );
-        if ( count ( $record_values ) != "4" ) {
-            continue;
-        }
-        $setName = empty( $name ) ? "@" : $name;
-        $record  = new ResourceRecord;
-        $record->setName( $setName );
-        $record->setRdata(Factory::Srv($record_values[0], $record_values[1], $record_values[2], $record_values[3]));
-        $zone->addResourceRecord($record);
-    }
-    if ( $type == "mx" ) {
-        $setName       = empty( $name ) ? "@" : $name;
-        $record_values = explode( "\n", $value );
-        usort($record_values, function ($a, $b) {
-            $a_value = explode( " ", $a );
-            $b_value = explode( " ", $b );
-            return (int) $a_value[0] - (int) $b_value[0];
-        });
-        foreach( $record_values as $record_value ) {
-            $record_value = explode( " ", $record_value );
-            if ( count( $record_value ) != "2" ) {
+        // Verify A record is not a CNAME record
+        if(  $type == "a" && preg_match("/[a-z]/i", $value)){
+            $type  = "cname";
+            $value = shell_exec( "dig $pre$domain $type +short | sort -n" );
+            $value = empty( $value ) ? "" : trim( $value );
+            if ( empty( $value ) ) {
                 continue;
             }
-            $mx_priority  = $record_value[0];
-            $mx_value     = $record_value[1];
-            $record       = new ResourceRecord;
+        }
+        if ( $type == "a" ) {
+            if ( ! empty( $wildcard_a ) && $wildcard_a == $record_values ) {
+                continue;
+            }
+            if ( $name == "*" ) {
+                $wildcard_a = $record_values;
+            }
+            $record_values = explode( "\n", $value );
+            $setName       = empty( $name ) ? "@" : $name;
+            foreach( $record_values as $record_value ) {
+                $record    = new ResourceRecord;
+                $record->setName( $setName );
+                $record->setRdata(Factory::A( $record_value ));
+                $zone->addResourceRecord($record);
+            }
+        }
+        if ( $type == "cname" ) {
+            if ( $name == "*" ) {
+                $wildcard_cname = $value;
+                continue;
+            }
+            if ( ! empty( $wildcard_cname ) && $wildcard_cname == $value ) {
+                continue;
+            }
+            $setName = empty( $name ) ? $domain : $name;
+            $record  = new ResourceRecord;
             $record->setName( $setName );
-            $record->setRdata(Factory::Mx($mx_priority, $mx_value));
+            $record->setRdata(Factory::Cname($value));
             $zone->addResourceRecord($record);
         }
-    }
-    if ( $type == "txt" ) {
-        $record_values = explode( "\n", $value );
-        $setName       = empty( $name ) ? "@" : "$name";
-        foreach( $record_values as $record_value ) {
-            $record = new ResourceRecord;
+        if ( $type == "srv" ) {
+            $record_values = explode( " ", $value );
+            if ( count ( $record_values ) != "4" ) {
+                continue;
+            }
+            $setName = empty( $name ) ? "@" : $name;
+            $record  = new ResourceRecord;
             $record->setName( $setName );
-            $record->setClass('IN');
-            $record->setRdata(Factory::Txt(trim($record_value,'"'), 0, 200));
+            $record->setRdata(Factory::Srv($record_values[0], $record_values[1], $record_values[2], $record_values[3]));
             $zone->addResourceRecord($record);
         }
+        if ( $type == "mx" ) {
+            $setName       = empty( $name ) ? "@" : $name;
+            $record_values = explode( "\n", $value );
+            usort($record_values, function ($a, $b) {
+                $a_value = explode( " ", $a );
+                $b_value = explode( " ", $b );
+                return (int) $a_value[0] - (int) $b_value[0];
+            });
+            foreach( $record_values as $record_value ) {
+                $record_value = explode( " ", $record_value );
+                if ( count( $record_value ) != "2" ) {
+                    continue;
+                }
+                $mx_priority  = $record_value[0];
+                $mx_value     = $record_value[1];
+                $record       = new ResourceRecord;
+                $record->setName( $setName );
+                $record->setRdata(Factory::Mx($mx_priority, $mx_value));
+                $zone->addResourceRecord($record);
+            }
+        }
+        if ( $type == "txt" ) {
+            $record_values = explode( "\n", $value );
+            $setName       = empty( $name ) ? "@" : "$name";
+            foreach( $record_values as $record_value ) {
+                $record = new ResourceRecord;
+                $record->setName( $setName );
+                $record->setClass('IN');
+                $record->setRdata(Factory::Txt(trim($record_value,'"'), 0, 200));
+                $zone->addResourceRecord($record);
+            }
+        }
+        $dns_records[] = [ "type" => $type, "name" => $name, "value" => $value ];
     }
-    $dns_records[] = [ "type" => $type, "name" => $name, "value" => $value ];
-  }
+
+    $response = shell_exec( "curl -sLI $domain | awk 'BEGIN{RS=\"\\r\\n\\r\\n\"}; END{print}'" );
+    $lines    = explode("\n", trim( $response ) );
+    $http_headers = [];
+    foreach ($lines as $line) {
+        // Trim whitespace from each line
+        $line = trim($line);
+        // Match key-value pairs (lines with a colon)
+        if (preg_match('/^([^:]+):\s*(.*)$/', $line, $matches)) {
+            $key = strtolower($matches[1]); // Use lowercase keys for consistency
+            $value = $matches[2];
+            // Handle duplicate keys (e.g., "vary" appears twice)
+            if (isset($http_headers[$key])) {
+                if (is_array($http_headers[$key])) {
+                    $http_headers[$key][] = $value;
+                } else {
+                    $http_headers[$key] = [$http_headers[$key], $value];
+                }
+            } else {
+                $http_headers[$key] = $value;
+            }
+        }
+    }
 
   $builder = new AlignedBuilder();
   $builder->addRdataFormatter('TXT', 'specialTxtFormatter');
 
   echo json_encode( [
-    "whois"       => $whois,
-    "dns_records" => $dns_records,
-    "ip_lookup"   => $ip_lookup,
-    "errors"      => [],
-    "zone"        => $builder->build($zone)
+    "whois"        => $whois,
+    "http_headers" => $http_headers,
+    "dns_records"  => $dns_records,
+    "ip_lookup"    => $ip_lookup,
+    "errors"       => [],
+    "zone"         => $builder->build($zone)
   ]);
   die();
 }
@@ -388,6 +413,32 @@ run();
                     </template>
                     </v-table>
                     </template>
+                </v-card-text>
+                </v-card>
+            </v-card>
+            <v-card class="mt-5" variant="outlined" color="primary">
+                <v-card-title>HTTP headers</v-card-title>
+                <v-card-text>
+                    <v-table density="compact">
+                    <template v-slot:default>
+                    <thead>
+                        <tr>
+                        <th class="text-left" style="min-width: 200px;">
+                            Name
+                        </th>
+                        <th class="text-left">
+                            Value
+                        </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for='(key, value) in response.http_headers'>
+                            <td>{{ value }}</td>
+                            <td>{{ key }}</td>
+                        </tr>
+                    </tbody>
+                    </template>
+                    </v-table>
                 </v-card-text>
                 </v-card>
             </v-card>
