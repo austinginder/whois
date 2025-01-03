@@ -424,6 +424,9 @@ run();
                 </v-card>
             </v-card>
             <v-card class="mt-5" variant="flat">
+                <v-btn size="small" @click="copyZone()" class="position-absolute right-0 mt-6" style="margin-right: 140px;">
+                  <v-icon left>mdi-content-copy</v-icon>
+                </v-btn>
                 <v-btn size="small" @click="downloadZone()" class="position-absolute right-0 mt-6 mr-4">
                   <v-icon left>mdi-download</v-icon>
                   Download
@@ -434,6 +437,14 @@ run();
             </v-col>
             </v-row>
         </v-container>
+        <v-snackbar v-model="snackbar.show" timeout="2000">
+        {{ snackbar.message }}
+        <template v-slot:actions>
+            <v-btn variant="text" @click="snackbar.show = false">
+                Close
+            </v-btn>
+        </template>
+        </v-snackbar>
       </v-main>
     </v-app>
   </div>
@@ -450,6 +461,7 @@ run();
             return {
                 domain: "",
                 loading: false,
+                snackbar: { show: false, message: "" },
                 response: { whois: "", errors: [], zone: "" }
             }
         },
@@ -489,6 +501,11 @@ run();
                 this.$refs.download_zone.download = `${this.domain}.zone`;
                 this.$refs.download_zone.href = window.URL.createObjectURL(newBlob);
                 this.$refs.download_zone.click();
+            },
+            copyZone() {
+                navigator.clipboard.writeText( this.response.zone )
+                this.snackbar.message = "Zone copied to clipboard"
+                this.snackbar.show = true
             }
         }
     }).use(vuetify).mount('#app');
